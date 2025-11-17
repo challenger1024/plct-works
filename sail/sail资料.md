@@ -14,3 +14,5 @@ riscv 指令集手册
 非特权 https://riscv.github.io/riscv-isa-manual/snapshot/unprivileged
 
 特权 https://riscv.github.io/riscv-isa-manual/snapshot/privileged 
+sail manual
+隐式参数: https://alasdair.github.io/manual.html#_functions

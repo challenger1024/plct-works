@@ -1,8 +1,8 @@
-# sail
+# linux下，如何开始sail编程
 
 ## 下载和配置sail的二进制文件
 ### 下载和配置
-下载sail的二进制文件，访问[https://github.com/rems-project/sail/releases](https://github.com/rems-project/sail/releases)。
+下载sail的二进制文件，访问[https://github.com/rems-project/sail/releases](https://github.com/rems-project/sail/releases)。  
 查看自己的linux架构:
 ```bash
 uname -m 
@@ -36,9 +36,9 @@ sail --version
 ```
 ### 注意事项
 有几点需要注意：
-- 1. Sail 自带一些  库（libraries）  和  插件（plugins） ，放在解压目录的子目录中。默认情况下，Sail 会自动根据  bin  目录的位置去找到这些库和插件。也就是说，一般不用手动设置路径，只要不乱         动目录结构，Sail 就能正常运行。
-- 2. Sail 自带了  Z3 SMT 求解器  的预编译版本。Z3 用于  类型检查、符号执行  等功能。因此你不需要额外安装 Z3 或其他依赖，直接解压就能用。
-- 3. 如果你  移动了整个解压目录 （比如把解压后的文件夹从下载目录搬到  /opt/sail ），Sail 默认寻找库和插件的路径就可能找不到了。这时候需要手动设置两个环境变量：`$SAIL_DIR`  → 指向  `share/sail`  文件夹。`$SAIL_PLUGIN_DIR`  → 指向  `share/libsail/plugins`  文件夹。
+- Sail 自带一些  库（libraries）  和  插件（plugins） ，放在解压目录的子目录中。默认情况下，Sail 会自动根据  bin  目录的位置去找到这些库和插件。也就是说，一般不用手动设置路径，只要不乱         动目录结构，Sail 就能正常运行。  
+- Sail 自带了  Z3 SMT 求解器  的预编译版本。Z3 用于  类型检查、符号执行  等功能。因此你不需要额外安装 Z3 或其他依赖，直接解压就能用。  
+- 如果你  移动了整个解压目录 （比如把解压后的文件夹从下载目录搬到  /opt/sail ），Sail 默认寻找库和插件的路径就可能找不到了。这时候需要手动设置两个环境变量：`$SAIL_DIR`  → 指向  `share/sail`  文件夹。`$SAIL_PLUGIN_DIR`  → 指向  `share/libsail/plugins`  文件夹。  
 
 ## 第一个sail程序
 新建一个文件夹，在其中新建一个文件
@@ -75,7 +75,6 @@ SAIL_FLAGS := --require-version 0.20 \
 # ================== 路径配置 ==================
 SAIL_DIR := $(shell $(SAIL) --dir)
 SAIL_LIB_DIR := $(SAIL_DIR)/lib
-SAIL_SRC_DIR := $(SAIL_DIR)/src
 
 # ================== 外部库配置 ==================
 # GMP用于支持任意精度整数与浮点数运算
@@ -117,7 +116,26 @@ clean:
 ### 运行第一个sail程序
 执行命令:
 ```bash
-make main
-./main
+make hello-sail
+./hello-sail
 ```
-可以看到`hello,sail!`的输出。
+可以看到`hello sail!`的输出。
+## sail调用c代码
+需要在sail编译成c代码的阶段，加入`-c_include <x.h>`选项，这里`x.h`是被调用的c语言代码的头文件  
+需要在c代码编译为二进制文件的阶段加入`x.c`与sail生成的c源文件一起编译。这里`x.c中`是对应`x.h`中定义的函数的时限  
+## sail语法介绍
+### 一些基本类型
+| 类型 | sail中的含义 | 编译为c代码后的含义 | 代码示例 |
+| --- | --- | --- | --- |
+| unit | 在函数声明中表示无返回值() | int | function main() : unit -> unit {} |
+| bool | true/false | true/false | let a:bool=true |
+| int | 表示任意精度整数 | int64 | let a:int=1 |
+| int('n) | 'n是sail中的类型约束 | int64 | let number:int(1)=1 |
+| nat | 任意精度自然数 | int64 | let a:nat=1; |
+| range('m,'n) | 闭区间'm和'n之间的数字 | int64 |  |
+| {n1,n2,...} | 一个数字集合，变量值只能是集合中的某个值 | int64 |  |
+| bits('n) | 位向量，'n限制了位向量的长度 | uint|  |
+| vector(n,type) | 向量：n为元素个数，type为元素类型，例如int | zz5vecz8z5iz9 |  |
+| list | 列表 |  | 两种写法：//    let l: list(int)=[|1,2,3|];let l: list(int)=1::2::3::[||]; |
+| tuple | tuple,必须有两个或更多元素，每个元素的类型可以不同 |  | let tuple1 : (string, int) = ("Hello, World!", 3) |
+| string | string,包裹在两个双引号之间的字符序列 |  |  |

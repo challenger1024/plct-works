@@ -1,5 +1,9 @@
 # sail-model学习笔记
 
+## 如何使用
+-**启动**: build/c_emulator/sail_riscv_sim
+
+
 ## 总体理解
 sail-model 由许多模块组成，其中核心模块是core,sys,postlude。
 ## core 模块
@@ -43,12 +47,10 @@ pmp  模块实现  物理内存保护  功能。
 pmp_regs.sail  定义了 PMP 寄存器（如  pmpcfg0 ,  pmpaddr0  等），以及它们的读写函数。
 这些寄存器保存了每个 PMP 区域的配置（地址边界、权限标志等）。
 pmp_control.sail  负责执行真正的  访问权限检查逻辑  和  优先级匹配 。
-## 问题分析
-issue#1367需要修改
+## 问题分析-issue#1367需要修改
 - pnp_regs.sail:148:pmpWriteAddr()。
 - config.json.in，添加2个配置项
 - core/sys_regs.sail:889:function legalize_satp()
-
 pa_bits:作用于PPN/PMP，限制了屋里地址宽度。
 asid_bits: 作用于satp.asid，限制地址空间标志服宽度，模拟硬件支持的最大地址空间数量。
 
@@ -65,66 +67,65 @@ ASID: bits [59:44] →  16 bits
 PPN: bits [43:0]
 sail语言中，切片操作不能用一个运行时才确定的变量，这样的话编译会出错。
 
-
-function legalize_satp(
-  arch : Architecture,
-  prev_value : xlenbits,
-  written_value : xlenbits,
-) -> xlenbits = {
-  
-  // Number of implemented physical address bits (PA bits).
-  // Determines the width of the physical address space. 
-  // Higher bits beyond this value are treated as read-only zeros.
-  // Typically 34 for RV32, and up to 56 for RV64 (as defined in the RISC-V Privileged Spec).
-  let pa_bits   : range(0, xlen + 2) = if xlen == 32 then config memory.physical_addr_bits_32 else config memory.physical_addr_bits;
-  // Number of implemented ASID bits (Address Space Identifier bits).
-  // Determines how many bits in the SATP.ASID field are valid.
-  // Bits above this number are read-only zeros.
-  // Typically 16, but some implementations may use fewer (e.g., 8).
-  let asid_bits:nat       = if xlen == 32 then config memory.asid_bits_32 else config memory.asid_bits;
-
-function legalize_satp(
-  arch : Architecture,
-  prev_value : xlenbits,
-  written_value : xlenbits
-) -> xlenbits = {
-  if xlen == 32 then {
-    let s = Mk_Satp32(written_value);
-    let s = [
-      s with
-      // If full 16-bit ASID is not supported then the high bits will be read only zero.
-      Asid = zero_extend(s[Asid][asid_bits - 1 .. 0]),
-      // Bits above the physically addressable memory are read only zero.
-      PPN = zero_extend(s[PPN][pa_bits - pagesize_bits-1 .. 0]),
-    ];
-    match satpMode_of_bits(arch, 0b000 @ s[Mode]) {
-      None()  => prev_value,
-      Some(Sv_mode) => match Sv_mode {
-        Bare if currentlyEnabled(Ext_Svbare) => s.bits,
-        Sv32 if currentlyEnabled(Ext_Sv32) => s.bits,
-        _ => prev_value,
-      }
-    }
-  } else if xlen == 64 then {
-    let s = Mk_Satp64(written_value);
-    let s = [
-      s with
-      Asid = zero_extend(s0[Asid][asid_bits - 1 .. 0]),
-      //Asid = zero_extend(s[Asid] & asid_mask),
-      PPN = zero_extend(s[PPN][pa_bits - pagesize_bits-1 .. 0]),
-      //PPN  = zero_extend(s[PPN]  & ppn_mask),
-    ];
-    match satpMode_of_bits(arch, s[Mode]) {
-      None()  => prev_value,
-      Some(Sv_mode) => match Sv_mode {
-        Bare if currentlyEnabled(Ext_Svbare) => s.bits,
-        Sv39 if currentlyEnabled(Ext_Sv39) => s.bits,
-        Sv48 if currentlyEnabled(Ext_Sv48) => s.bits,
-        Sv57 if currentlyEnabled(Ext_Sv57) => s.bits,
-        _ => prev_value,
-      }
-    }
-  } else {
-    internal_error(__FILE__, __LINE__, "Unsupported xlen" ^ dec_str(xlen))
+## 问题分析 - issue#1389
+https://github.com/riscv/sail-riscv/issues/1389
+修改：./model/sys/mem.sail:line242
+- ./model/sys/platform.sail:line343,function within_mmio_writable forall 'n, 0 < 'n <= max_mem_access . (addr : physaddr, width : int('n)) -> bool =
+当启用  RVFI 模式 （即  RISC-V Formal Interface ）时，Sail 会输出形式化验证用的信号。
+在这种模式下， 不会访问真实设备或 MMIO 区域 。
+所以直接返回  false ，表示当前模式下  禁用 MMIO 写操作 。
+- ./model/sys/platform.sail:line359,function mmio_write forall 'n, 0 < 'n <= max_mem_access . (paddr : physaddr, width : int('n), data: bits(8 * 'n)) -> MemoryOpResult(bool) =
+- ./model/sys/platform.sail:line23,function within_clint forall 'n, 0 < 'n <= max_mem_access . (Physaddr(addr) : physaddr, width : int('n)) -> bool =  
+判断某次内存访问是否落在 CLINT 区域内，这里就是是否在MMIO设备里  
+这里逻辑就是a的左端点在b的左端点的右侧
+且a的右端点在b的右端点的左侧
+line40,function within_htif_readable forall 'n, 0 < 'n <= max_mem_access . (addr : physaddr, width : int('n)) -> bool =
+表示HTIF 的读写区域一致，无需重复边界检测代码，复用了within_htif_writable函数
+HTIF（Host-Target Interface）  是 RISC-V 模拟器（例如 Spike）中常见的一个“虚拟外设”。
+line34,function within_htif_writable forall 'n, 0 < 'n <= max_mem_access . (Physaddr(addr) : physaddr, width : int('n)) -> bool =
+当前访问的物理地址  addr （宽度为  width  字节）是否 与 HTIF 可写区域（tohost buffer）重叠 。
+判断逻辑是:a和b是两个线段
+a的左端点在b的右端点的左侧
+且a的右端点在b的左端点的右侧
+所以他们是有交集的
+原函数：
+function within_htif_writable forall 'n, 0 < 'n <= max_mem_access . (Physaddr(addr) : physaddr, width : int('n)) -> bool =
+  match htif_tohost_base {
+    None() => false,
+//    Some(base) => (addr <_u base + htif_tohost_size) & (addr + width >_u base)
+    Some(base) => (addr+width <=_u base + htif_tohost_size) & (addr  >=_u base)
   }
+
+
+
+## 调用逻辑
+- 原本只有一个within_mmio_writable函数，改成intersects_mmio_writable函数  
+- intersects_mmio_writable:判断padd与MMIO是否有交集  
+- 判断过程：如果paddr与MMIO有交集，则交给MMIO处理，及mmio_write函数。  
+- 在mmio_write处理的过程中，如果发现paddr不完全包含于MMIO，抛出错误。
+
+在platform.sail添加函数，intersectclin,intersecthtif,
+后两个函数调用range_utils.sail中的intersect函数进行范围检查
+withinclin和withinheft也可以调用range_utils.sail中的within函数
+range_utils.sail中需要写两个函数：intersect和whithin
+用于判断两个范围有交集，和两个范围的完全包含情况
+
+./model/core/platform_config.sail:37:
+let plat_clint_base : physaddrbits = to_bits_checked(config platform.clint.base : int)
+
+
+physaddrbits_zero_extend
+./model/core/prelude_mem_addrtype.sail:15:newtype physaddr = Physaddr : physaddrbits
+./model/core/prelude_mem_addrtype.sail:11:type physaddrbits = bits(physaddrbits_len)
+./model/core/xlen.sail:22:type physaddrbits_len : Int = if xlen == 32 then 34 else 64
+
+function intersect_clint forall 'n, 0 < 'n <= max_mem_access . (Physaddr(addr) : physaddr, width : int('n)) -> bool = {
+  // To avoid overflow issues when physical memory extends to the end
+  // of the addressable range, we need to perform address bound checks
+  // on unsigned unbounded integers.
+  let addr_int       = unsigned(addr);
+  let clint_base_int = unsigned(plat_clint_base);
+  let clint_size_int = unsigned(plat_clint_size);
+    clint_base_int <= addr_int+width
+  & (addr_int  <= (clint_base_int + clint_size_int)
 }

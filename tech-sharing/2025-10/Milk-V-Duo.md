@@ -73,6 +73,7 @@
 |15|返回上级目录并退出ruyi llvm虚拟环境<br>`cd ..`<br>`ruyi-deactivate`|成功退出|
 |16|SSH连接到开发板并执行编译好的二进制<br>`ssh root@192.168.42.1`<br>如提示Host key verification failed：<br>打开当前用户目录下的 .ssh/known_hosts目录，删除192.168.42.1对应行<br>登录密码为milkv，提示Are you sure you want to continue connecting时输入yes回车即可<br>`./hello-gcc`<br>`./hello-llvm`<br>`./coremark-gcc`<br>`./coremark-llvm|两次运行Hello World 均正确输出Hello, World!<br>两次运行coremark均正常输出coremark结果|
 ---
+
 ## 在milk-v上调试多线程程序
 使用llvm编译带调试符号版本
 ```bash

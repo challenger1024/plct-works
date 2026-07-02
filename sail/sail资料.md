@@ -11,8 +11,10 @@ plct sail 相关的公开报告 https://space.bilibili.com/296494084/search/vide
 
 riscv 指令集手册
 
-非特权 https://riscv.github.io/riscv-isa-manual/snapshot/unprivileged
+非特权 https://docs.riscv.org/reference/isa/unpriv/unpriv-index.html
 
 特权 https://riscv.github.io/riscv-isa-manual/snapshot/privileged 
 sail manual
 隐式参数: https://alasdair.github.io/manual.html#_functions
+
+网站上的手册：https://docs.riscv.org/reference/isa/index.html
